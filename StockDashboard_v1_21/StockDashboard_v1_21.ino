@@ -1,5 +1,5 @@
 /*
-   Clingman Ave Labs - Stock Dashboard v1.20
+   Clingman Ave Labs - Stock Dashboard v1.21
    ---------------------------------------------------------------
    - Multi-ticker (up to 10 Yahoo symbols, drag-to-reorder)
    - Yahoo Finance v8 chart API (no API key)
@@ -510,7 +510,7 @@ void drawSplash(const char* mode, const char* line1, const char* line2) {
   dsp.setFont(&FreeSansBold9pt7b); dsp.setTextSize(1);
   dsp.setCursor(5, 16); dsp.print("Stock Dashboard");
   dsp.setFont(NULL); dsp.setTextSize(1);
-  dsp.setCursor(210, 4); dsp.print("v1.20");
+  dsp.setCursor(210, 4); dsp.print("v1.21");
   dsp.drawLine(5, 22, 291, 22, BLACK);
   dsp.setCursor(5, 30); dsp.print(mode);
   dsp.setCursor(5, 46); dsp.print(line1);
@@ -549,7 +549,7 @@ String buildHTML() {
 
   String h = R"rawliteral(
 <!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Stock Dashboard v1.20</title><style>
+<title>Stock Dashboard v1.21</title><style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,sans-serif;background:#0a0a0a;color:#e8e8e8;min-height:100vh;padding:16px}
 .hdr{text-align:center;padding:20px 0 16px;border-bottom:1px solid #222;margin-bottom:20px}
@@ -591,7 +591,7 @@ button[type=submit]:disabled{background:#333;color:#666;cursor:not-allowed}
 .bd{width:100%;padding:14px;background:#c0392b;color:#fff;font-size:15px;font-weight:700;border:none;border-radius:10px;cursor:pointer;margin-top:12px}
 .bd:hover{background:#e74c3c}.bd:disabled{background:#333;color:#666;cursor:not-allowed}
 </style></head><body>
-<div class="hdr"><div class="lab">Clingman Ave Labs</div><h1>Stock Dashboard v1.20</h1></div>
+<div class="hdr"><div class="lab">Clingman Ave Labs</div><h1>Stock Dashboard v1.21</h1></div>
 <div class="tabs">
 <div class="tab)rawliteral";
   if(!dFirst) h += " active";
@@ -1011,7 +1011,7 @@ void setup() {
   bool btnW = (wr == ESP_SLEEP_WAKEUP_EXT0);
   bool cold = (wr == ESP_SLEEP_WAKEUP_UNDEFINED);
 
-  Serial.println("\n===== Stock Dashboard v1.20 =====");
+  Serial.println("\n===== Stock Dashboard v1.21 =====");
   Serial.printf("W:%d V:%d T:%d/%d(%s) B:%d%%\n",
     wr, rView, rTkrIdx, cfgNTkr, sym(), batPct());
 
