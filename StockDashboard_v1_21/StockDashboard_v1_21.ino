@@ -546,7 +546,8 @@ void drawSplash(const char* mode, const char* line1, const char* line2,
 void splashFirstBoot() {
   drawSplash("WELCOME - FIRST TIME SETUP",
              "1. Connect phone to WiFi:",
-             "2. Enter your WiFi credentials");
+             "2. Enter your WiFi credentials",
+             "github.com/Clingman-Ave-Labs/stock-dashboard");
 }
 void splashDashSetup() {
   drawSplash("DASHBOARD SETUP REQUIRED",
