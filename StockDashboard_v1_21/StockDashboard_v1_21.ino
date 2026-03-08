@@ -74,6 +74,7 @@ char    cfgTkr[MAX_TICKERS][20]; // fixed buffers
 char    cfgSSID[64]="";
 char    cfgPASS[64]="";
 bool    cfgDashOK  = false;
+bool    cfgEverOK  = false;  // has device EVER fetched data successfully? (NVS-backed)
 
 // ---------------------------------------------------------------
 // RTC-PERSISTED STATE
@@ -88,6 +89,7 @@ RTC_DATA_ATTR time_t rTrdStart=0, rTrdEnd=0;
 RTC_DATA_ATTR time_t rUpdEpoch = 0;
 RTC_DATA_ATTR int    rView=VIEW_1DAY, rTkrIdx=0;
 RTC_DATA_ATTR bool   rMktOpen=false;
+RTC_DATA_ATTR bool   rLastOK=false;   // was the most recent update successful?
 
 // ---------------------------------------------------------------
 // LAYOUT
@@ -129,6 +131,7 @@ void nvsLoad() {
   cfgViews   = prefs.getUChar("views", 0xFF);
   if(!cfgViews) cfgViews = 0x01;
   cfgDashOK  = prefs.getBool("dashOK", false);
+  cfgEverOK  = prefs.getBool("everOK", false);
   cfgNTkr    = constrain((int)prefs.getInt("nTkr",0), 0, MAX_TICKERS);
   for(int i=0; i<cfgNTkr; i++) {
     snprintf(k, sizeof(k), "t%d", i);
@@ -476,6 +479,9 @@ void drawScreen() {
   } else {
     drR("--:--", R_E, 2, 1);
   }
+  if(!rLastOK && gStatus != "Init") {
+    drR("OFF", 257, 2, 1);
+  }
   dsp.drawLine(0, 12, 296, 12, BLACK);
   drawChart();
   for(int y = 12; y < 128; y += 2) dsp.drawPixel(DV_X, y, BLACK);
@@ -511,8 +517,20 @@ void drawScreen() {
   if(rVol > 0) {
     dsp.setCursor(INF_X, ry); dsp.print(fmtVol(rVol)); ry += 11;
   }
-  dsp.setCursor(INF_X, ry); dsp.print("finance.yahoo.com"); ry += 9;
-  dsp.setCursor(INF_X, ry); dsp.print("/quote/" + symLC());
+  if(!rLastOK && gStatus != "Init") {
+    if(!cfgEverOK) {
+      dsp.setCursor(INF_X, ry); dsp.print("No WiFi."); ry += 9;
+      dsp.setCursor(INF_X, ry); dsp.print("Check credentials."); ry += 9;
+      dsp.setCursor(INF_X, ry); dsp.print("Hold btn to setup");
+    } else {
+      dsp.setCursor(INF_X, ry); dsp.print("Offline."); ry += 9;
+      dsp.setCursor(INF_X, ry); dsp.print("Cached data shown."); ry += 9;
+      dsp.setCursor(INF_X, ry); dsp.print("Retrying soon.");
+    }
+  } else {
+    dsp.setCursor(INF_X, ry); dsp.print("finance.yahoo.com"); ry += 9;
+    dsp.setCursor(INF_X, ry); dsp.print("/quote/" + symLC());
+  }
   dsp.update();
 }
 
@@ -1008,7 +1026,8 @@ void doUpdate() {
   WiFi.begin(cfgSSID, cfgPASS);
   int r = 0; while(WiFi.status() != WL_CONNECTED && r < 40) { delay(500); r++; }
   if(WiFi.status() != WL_CONNECTED) {
-    gStatus = "WiFi"; WiFi.disconnect(true); WiFi.mode(WIFI_OFF); return;
+    gStatus = "WiFi"; rLastOK = false;
+    WiFi.disconnect(true); WiFi.mode(WIFI_OFF); return;
   }
   configTzTime(rTZ, "pool.ntp.org");
   struct tm ti; int a = 0;
@@ -1016,6 +1035,19 @@ void doUpdate() {
   if(a < 10) time(&rUpdEpoch);
   fetchYahoo();
   WiFi.disconnect(true); WiFi.mode(WIFI_OFF);
+
+  // Track connection success for state-aware UI
+  if(gStatus == "OK" || gStatus == "OK(cl)") {
+    rLastOK = true;
+    if(!cfgEverOK) {
+      prefs.begin("cfg", false);
+      prefs.putBool("everOK", true);
+      prefs.end();
+      cfgEverOK = true;
+    }
+  } else {
+    rLastOK = false;
+  }
 }
 
 // ---------------------------------------------------------------
