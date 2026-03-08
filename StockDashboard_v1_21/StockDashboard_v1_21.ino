@@ -83,8 +83,9 @@ RTC_DATA_ATTR float  rHigh=0, rLow=0, rOpen=0;
 RTC_DATA_ATTR long   rVol=0;
 RTC_DATA_ATTR char   rCur[8]  = "USD";
 RTC_DATA_ATTR char   rTZ[64]  = "EST5EDT,M3.2.0,M11.1.0"; // 64-byte buffer
+#define LOCAL_TZ "EST5EDT,M3.2.0,M11.1.0"
 RTC_DATA_ATTR time_t rTrdStart=0, rTrdEnd=0;
-RTC_DATA_ATTR char   rUpdTime[16] = "--:--";
+RTC_DATA_ATTR time_t rUpdEpoch = 0;
 RTC_DATA_ATTR int    rView=VIEW_1DAY, rTkrIdx=0;
 RTC_DATA_ATTR bool   rMktOpen=false;
 
@@ -341,11 +342,15 @@ String fmtY(float v) {
   return String(b);
 }
 
-// Compact for H/L/O/PC: drop decimals if >6 chars
+// Compact for H/L/O/PC and change values: no 5-digit numbers
 String fmtC(float v) {
-  char b[12];
-  snprintf(b, sizeof(b), "%.2f", v);
-  if(strlen(b) > 6) snprintf(b, sizeof(b), "%.0f", v);
+  char b[12]; float a = fabsf(v);
+  if(a < 0.001f)         snprintf(b, sizeof(b), "%.4f", v);
+  else if(a < 0.1f)      snprintf(b, sizeof(b), "%.3f", v);
+  else if(a < 100.0f)    snprintf(b, sizeof(b), "%.2f", v);
+  else if(a < 10000.0f)  snprintf(b, sizeof(b), "%.0f", v);
+  else if(a < 100000.0f) snprintf(b, sizeof(b), "%.1fk", v/1000);
+  else                    snprintf(b, sizeof(b), "%.0fk", v/1000);
   return String(b);
 }
 
@@ -461,8 +466,15 @@ void drawScreen() {
   dsp.setRotation(1); dsp.setTextColor(BLACK); dsp.clear();
   drawBat(5, 2);
   drC(vLabel[rView], PL_CX, 2, 1);
-  if(rMktOpen) drR(rUpdTime, R_E, 2, 1);
-  else         drR("CLOSED", R_E, 2, 1);
+  if(rUpdEpoch) {
+    setenv("TZ", LOCAL_TZ, 1); tzset();
+    struct tm lt; localtime_r(&rUpdEpoch, &lt);
+    char tb[16]; strftime(tb, sizeof(tb), "%H:%M", &lt);
+    setenv("TZ", rTZ, 1); tzset();
+    drR(tb, R_E, 2, 1);
+  } else {
+    drR("--:--", R_E, 2, 1);
+  }
   dsp.drawLine(0, 12, 296, 12, BLACK);
   drawChart();
   for(int y = 12; y < 128; y += 2) dsp.drawPixel(DV_X, y, BLACK);
@@ -480,7 +492,8 @@ void drawScreen() {
   dsp.print(pS + String(rPct, 2) + "%");
   float ac = rPrice - rPrev;
   String aS = (ac >= 0) ? "+" : "";
-  char ab[20]; snprintf(ab, sizeof(ab), "%s%.2f%s", aS.c_str(), ac, sfx().c_str());
+  String acFmt = aS + fmtC(ac) + sfx();
+  char ab[24]; strlcpy(ab, acFmt.c_str(), sizeof(ab));
   drR(ab, R_E, ry, 1); ry += 12;
 
   dsp.drawLine(INF_X, ry, R_E, ry, BLACK); ry += 5;
@@ -505,7 +518,8 @@ void drawScreen() {
 // ---------------------------------------------------------------
 // E-INK SPLASH SCREENS
 // ---------------------------------------------------------------
-void drawSplash(const char* mode, const char* line1, const char* line2) {
+void drawSplash(const char* mode, const char* line1, const char* line2,
+                const char* helpUrl = nullptr) {
   dsp.setRotation(1); dsp.setTextColor(BLACK); dsp.clear();
   dsp.setFont(&FreeSansBold9pt7b); dsp.setTextSize(1);
   dsp.setCursor(5, 16); dsp.print("Stock Dashboard");
@@ -520,7 +534,11 @@ void drawSplash(const char* mode, const char* line1, const char* line2) {
   dsp.setCursor(5, 82); dsp.print("Open: 192.168.4.1");
   if(line2[0]) { dsp.setCursor(5, 96); dsp.print(line2); }
   dsp.drawLine(5, 110, 291, 110, BLACK);
-  dsp.setCursor(5, 118); dsp.print("(c) 2026 P. Redding & Clingman Ave Labs");
+  if(helpUrl) {
+    dsp.setCursor(5, 114); dsp.print("Help: "); dsp.print(helpUrl);
+  } else {
+    dsp.setCursor(5, 118); dsp.print("(c) 2026 P. Redding & Clingman Ave Labs");
+  }
   dsp.update();
 }
 
@@ -537,7 +555,8 @@ void splashDashSetup() {
 void splashConfig() {
   drawSplash("CONFIGURATION MODE",
              "Connect to WiFi:",
-             "Add stocks, set interval, change WiFi");
+             "Add stocks, set interval, change WiFi",
+             "github.com/Clingman-Ave-Labs/stock-dashboard");
 }
 
 // ---------------------------------------------------------------
@@ -992,7 +1011,7 @@ void doUpdate() {
   configTzTime(rTZ, "pool.ntp.org");
   struct tm ti; int a = 0;
   while(!getLocalTime(&ti) && a < 10) { delay(500); a++; }
-  if(a < 10) strftime(rUpdTime, sizeof(rUpdTime), "%H:%M", &ti);
+  if(a < 10) time(&rUpdEpoch);
   fetchYahoo();
   WiFi.disconnect(true); WiFi.mode(WIFI_OFF);
 }
