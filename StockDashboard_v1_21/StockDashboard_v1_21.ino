@@ -536,7 +536,7 @@ void drawSplash(const char* mode, const char* line1, const char* line2,
   if(line2[0]) { dsp.setCursor(5, 96); dsp.print(line2); }
   dsp.drawLine(5, 110, 291, 110, BLACK);
   if(helpUrl) {
-    dsp.setCursor(5, 114); dsp.print("Help: "); dsp.print(helpUrl);
+    dsp.setCursor(5, 114); dsp.print(helpUrl);
   } else {
     dsp.setCursor(5, 118); dsp.print("(c) 2026 P. Redding & Clingman Ave Labs");
   }
