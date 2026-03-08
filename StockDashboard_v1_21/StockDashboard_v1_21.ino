@@ -401,6 +401,11 @@ void drawChart() {
     if(gPrices[i] < lo) lo = gPrices[i];
     if(gPrices[i] > hi) hi = gPrices[i];
   }
+  // Include chartPreviousClose so graph visually matches period change %
+  if(rPrev > 0.01f) {
+    if(rPrev < lo) lo = rPrev;
+    if(rPrev > hi) hi = rPrev;
+  }
 
   // Protect against flat line / single value
   float range = hi - lo;
@@ -432,6 +437,14 @@ void drawChart() {
   }
   dsp.drawLine(pX, pY, pX, pY+pH-1, BLACK);
   dsp.drawLine(pX, pY+pH-1, pX+pW-1, pY+pH-1, BLACK);
+
+  // Dotted reference line at chartPreviousClose
+  if(rPrev > 0.01f && rPrev >= lo && rPrev <= hi) {
+    int rY = pY + pH-1 - (int)(((rPrev - lo) / span) * (pH-1));
+    rY = constrain(rY, pY, pY+pH-1);
+    for(int x = pX+1; x < pX+pW; x += 3)
+      dsp.drawPixel(x, rY, BLACK);
+  }
 
   // Plot
   int xD = max(gBarCnt - 1, 1);
