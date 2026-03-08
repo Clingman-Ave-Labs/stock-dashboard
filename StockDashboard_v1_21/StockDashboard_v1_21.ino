@@ -572,6 +572,11 @@ void splashDashSetup() {
              "Reconnect phone to WiFi:",
              "Go to Dashboard tab to add stocks.");
 }
+void splashWifiFail() {
+  drawSplash("WiFi NOT CONNECTED",
+             "Check SSID & password. Connect to:",
+             "Go to WiFi tab to update credentials.");
+}
 void splashConfig() {
   drawSplash("CONFIGURATION MODE",
              "Connect to WiFi:",
@@ -890,9 +895,10 @@ bool runPortal(bool first) {
   srv.onNotFound(hRedir);
   srv.begin();
 
-  if(first)        splashFirstBoot();
-  else if(needDash) splashDashSetup();
-  else              splashConfig();
+  if(first)                   splashFirstBoot();
+  else if(needDash && !gInet) splashWifiFail();
+  else if(needDash)           splashDashSetup();
+  else                        splashConfig();
 
   unsigned long t0 = millis(); gDone = false;
   while(millis() - t0 < PORTAL_TIMEOUT) {
