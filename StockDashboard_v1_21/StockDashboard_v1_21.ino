@@ -103,7 +103,8 @@ RTC_DATA_ATTR bool   rMktOpen=false;
 #define R_E     293
 #define PL_CX   (CH_X+30+(CH_W-30)/2)
 
-static const char* AP_NAME = "StockDash-Setup";
+// AP SSID with hardware-seeded 4-hex suffix from eFuse MAC
+static char AP_NAME[24] = "StockDash-Setup";
 static const byte  DNS_P   = 53;
 
 String gStatus = "Init";
@@ -529,7 +530,7 @@ void drawSplash(const char* mode, const char* line1, const char* line2,
   dsp.setCursor(5, 30); dsp.print(mode);
   dsp.setCursor(5, 46); dsp.print(line1);
   dsp.setTextSize(2);
-  dsp.setCursor(5, 60); dsp.print("StockDash-Setup");
+  dsp.setCursor(5, 60); dsp.print(AP_NAME);
   dsp.setTextSize(1);
   dsp.setCursor(5, 82); dsp.print("Open: 192.168.4.1");
   if(line2[0]) { dsp.setCursor(5, 96); dsp.print(line2); }
@@ -1021,6 +1022,12 @@ void doUpdate() {
 // ---------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
+
+  // Build unique AP SSID from hardware eFuse MAC (last 2 bytes = 4 hex chars)
+  uint64_t mac = ESP.getEfuseMac();
+  snprintf(AP_NAME, sizeof(AP_NAME), "StockDash-%04X",
+           (uint16_t)(mac >> 32));
+
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   delay(300);
 
