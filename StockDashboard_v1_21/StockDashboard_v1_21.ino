@@ -82,6 +82,7 @@ RTC_DATA_ATTR float  rPrice=0, rPct=0, rPrev=0;
 RTC_DATA_ATTR float  rHigh=0, rLow=0, rOpen=0;
 RTC_DATA_ATTR long   rVol=0;
 RTC_DATA_ATTR char   rCur[8]  = "USD";
+RTC_DATA_ATTR char   rDispName[11] = ""; // friendly display name (max 10 chars)
 RTC_DATA_ATTR char   rTZ[64]  = "EST5EDT,M3.2.0,M11.1.0"; // 64-byte buffer
 #define LOCAL_TZ "EST5EDT,M3.2.0,M11.1.0"
 RTC_DATA_ATTR time_t rTrdStart=0, rTrdEnd=0;
@@ -500,8 +501,9 @@ void drawScreen() {
 
   int ry = 15;
   dsp.setTextSize(2); dsp.setFont(NULL);
-  { // truncate ticker to fit info panel (10 chars max at size 2)
-    char tb[11]; strlcpy(tb, sym(), sizeof(tb));
+  { // Show friendly name if available, else raw ticker (10 chars max at size 2)
+    const char* label = (rDispName[0] != '\0') ? rDispName : sym();
+    char tb[11]; strlcpy(tb, label, sizeof(tb));
     dsp.setCursor(INF_X, ry); dsp.print(tb);
   } ry += 20;
   char ps[20]; snprintf(ps, sizeof(ps), "%s%.2f", pfx().c_str(), rPrice);
@@ -845,6 +847,7 @@ void hSaveD() {
   }
   if(!cfgNTkr) { hRedir(); return; }
   if(rTkrIdx >= cfgNTkr) rTkrIdx = 0;
+  rDispName[0] = '\0';
   if(!(cfgViews & (1<<rView))) rView = nextView(rView);
   nvsDash();
   srv.send_P(200, "text/html", OK_HTML);
@@ -967,6 +970,14 @@ void fetchYahoo() {
   if(meta.containsKey("exchangeName"))
     detectTZ(meta["exchangeName"].as<const char*>());
 
+  // Friendly display name for tickers with special chars (^GSPC -> S&P 500)
+  rDispName[0] = '\0';
+  if(meta.containsKey("shortName")) {
+    strlcpy(rDispName, meta["shortName"].as<const char*>(), sizeof(rDispName));
+  } else if(meta.containsKey("longName")) {
+    strlcpy(rDispName, meta["longName"].as<const char*>(), sizeof(rDispName));
+  }
+
   // Trading period
   if(meta.containsKey("currentTradingPeriod")) {
     JsonObject reg = meta["currentTradingPeriod"]["regular"];
@@ -1083,7 +1094,7 @@ void setup() {
         esp_deep_sleep_start(); return;
       }
     }
-    rView = VIEW_1DAY; rTkrIdx = 0;
+    rView = VIEW_1DAY; rTkrIdx = 0; rDispName[0] = '\0';
     if(!(cfgViews & (1<<rView))) rView = nextView(rView);
   }
 
@@ -1105,7 +1116,7 @@ void setup() {
         rView = VIEW_1DAY;
         if(!(cfgViews & (1<<rView))) rView = nextView(rView);
         rPrice=0;rPct=0;rPrev=0;rHigh=0;rLow=0;rOpen=0;rVol=0;
-        gBarCnt=0;rTrdStart=0;rTrdEnd=0;
+        gBarCnt=0;rTrdStart=0;rTrdEnd=0;rDispName[0]='\0';
         Serial.println("Long -> " + String(sym()));
       } else if(!longH) {
         rView = nextView(rView);
