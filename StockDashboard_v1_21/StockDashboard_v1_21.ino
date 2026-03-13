@@ -164,6 +164,24 @@ void nvsDash() {
 }
 
 // ---------------------------------------------------------------
+// URL DECODE  (e.g. %5EGSPC -> ^GSPC)
+// ---------------------------------------------------------------
+void urlDecode(String &s) {
+  String out; out.reserve(s.length());
+  for(unsigned int i = 0; i < s.length(); i++) {
+    if(s[i] == '+') { out += ' '; }
+    else if(s[i] == '%' && i + 2 < s.length()) {
+      char hi = s[i+1], lo = s[i+2];
+      if(isxdigit(hi) && isxdigit(lo)) {
+        char c = (char)strtol(s.substring(i+1, i+3).c_str(), NULL, 16);
+        out += c; i += 2;
+      } else { out += s[i]; }
+    } else { out += s[i]; }
+  }
+  s = out;
+}
+
+// ---------------------------------------------------------------
 // TICKER HELPERS
 // ---------------------------------------------------------------
 const char* sym() {
@@ -482,7 +500,10 @@ void drawScreen() {
 
   int ry = 15;
   dsp.setTextSize(2); dsp.setFont(NULL);
-  dsp.setCursor(INF_X, ry); dsp.print(sym()); ry += 20;
+  { // truncate ticker to fit info panel (10 chars max at size 2)
+    char tb[11]; strlcpy(tb, sym(), sizeof(tb));
+    dsp.setCursor(INF_X, ry); dsp.print(tb);
+  } ry += 20;
   char ps[20]; snprintf(ps, sizeof(ps), "%s%.2f", pfx().c_str(), rPrice);
   dsp.setCursor(INF_X, ry); dsp.print(ps); ry += 20;
 
@@ -757,7 +778,7 @@ void hRoot()    { srv.send(200, "text/html", buildHTML()); }
 void hRedir()   { srv.sendHeader("Location","http://192.168.4.1/",true); srv.send(302,"text/plain",""); }
 
 void hVal() {
-  String s = srv.arg("s"); s.trim(); s.toUpperCase();
+  String s = srv.arg("s"); s.trim(); urlDecode(s); s.toUpperCase();
   if(!s.length()) { srv.send(200,"application/json","{\"ok\":false}"); return; }
   if(!gInet) { srv.send(200,"application/json","{\"ok\":true,\"n\":\"(offline)\"}"); return; }
 
@@ -815,7 +836,7 @@ void hSaveD() {
   cfgNTkr = 0;
   for(int i=0; i<srv.args() && cfgNTkr < MAX_TICKERS; i++) {
     if(srv.argName(i) == "tkr") {
-      String v = srv.arg(i); v.trim(); v.toUpperCase();
+      String v = srv.arg(i); v.trim(); urlDecode(v); v.toUpperCase();
       if(v.length() > 0) {
         strlcpy(cfgTkr[cfgNTkr], v.c_str(), sizeof(cfgTkr[cfgNTkr]));
         cfgNTkr++;
