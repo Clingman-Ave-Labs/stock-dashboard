@@ -504,6 +504,7 @@ void drawScreen() {
   { // Show friendly name if available, else raw ticker (10 chars max at size 2)
     const char* label = (rDispName[0] != '\0') ? rDispName : sym();
     char tb[11]; strlcpy(tb, label, sizeof(tb));
+    for(int i = 0; tb[i]; i++) tb[i] = toupper(tb[i]);
     dsp.setCursor(INF_X, ry); dsp.print(tb);
   } ry += 20;
   char ps[20]; snprintf(ps, sizeof(ps), "%s%.2f", pfx().c_str(), rPrice);
