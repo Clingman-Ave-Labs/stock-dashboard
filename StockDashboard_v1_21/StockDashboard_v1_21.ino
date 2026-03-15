@@ -25,6 +25,7 @@
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include <time.h>
+#include <HTTPUpdate.h>
 #include "heltec-eink-modules.h"
 #include <Fonts/FreeSansBold9pt7b.h>
 
@@ -44,6 +45,10 @@ const gpio_num_t BUTTON_PIN = GPIO_NUM_21;
 #define LONG_HOLD_MS   3000
 #define BTN_DEBOUNCE   200       // ms to ignore after ext0 wake
 #define MAX_TICKERS    10
+
+#define FW_VERSION     "1.21"
+#define OTA_URL        "https://github.com/Clingman-Ave-Labs/stock-dashboard/releases/latest/download/firmware.bin"
+#define OTA_BRANCH_FMT "https://github.com/Clingman-Ave-Labs/stock-dashboard/releases/download/%s-latest/firmware.bin"
 
 #define VIEW_1DAY  0
 #define VIEW_5DAY  1
@@ -611,6 +616,10 @@ button[type=submit]:disabled{background:#333;color:#666;cursor:not-allowed}
 .dng{background:#1a0a0a;border:1px solid #552222;border-radius:8px;padding:16px;margin-bottom:16px;color:#cc4444;font-size:13px;line-height:1.6}
 .bd{width:100%;padding:14px;background:#c0392b;color:#fff;font-size:15px;font-weight:700;border:none;border-radius:10px;cursor:pointer;margin-top:12px}
 .bd:hover{background:#e74c3c}.bd:disabled{background:#333;color:#666;cursor:not-allowed}
+.ubtn{width:100%;padding:14px;background:#4a9eff;color:#fff;font-size:15px;font-weight:700;border:none;border-radius:10px;cursor:pointer;transition:all .2s}
+.ubtn:hover{background:#3a8ef0}.ubtn:disabled{background:#333;color:#666;cursor:not-allowed}
+.ebtn{width:100%;padding:12px;background:#333;color:#aaa;font-size:14px;font-weight:600;border:1px solid #444;border-radius:10px;cursor:pointer;margin-top:12px;transition:all .2s}
+.ebtn:hover{background:#444;color:#fff}.ebtn:disabled{background:#222;color:#555;cursor:not-allowed}
 </style></head><body>
 <div class="hdr"><div class="lab">Clingman Ave Labs</div><h1>Stock Dashboard v1.21</h1></div>
 <div class="tabs">
@@ -621,6 +630,7 @@ button[type=submit]:disabled{background:#333;color:#666;cursor:not-allowed}
   if(dFirst) h += " active";
   h += R"rawliteral(" onclick="sw(1)">Dashboard</div>
 <div class="tab" onclick="sw(2)">Reset</div>
+<div class="tab" onclick="sw(3)">Update</div>
 </div>
 <div class="pnl)rawliteral";
   if(!dFirst) h += " active";
@@ -686,6 +696,20 @@ I understand this will erase everything</label>
 <button class="bd" id="rb" disabled onclick="doR()">Factory Reset</button>
 <div class="msg" id="rm">Resetting... rebooting.</div>
 </div>
+<div class="pnl" id="p3">
+<div style="text-align:center;margin-bottom:16px"><span style="font-size:13px;color:#888">Current firmware</span><br><span style="font-size:22px;font-weight:700;color:#fff">v)rawliteral";
+  h += FW_VERSION;
+  h += R"rawliteral(</span></div>
+<button type="button" class="ubtn" onclick="doOTA('')">Update from Main</button>
+<div id="om" class="msg"></div>
+<div style="margin-top:24px">
+<div class="sr" onclick="togExp()" style="cursor:pointer;user-select:none"><span id="ea" style="transition:transform .2s;display:inline-block">&#9654;</span>&nbsp;Experimental</div>
+<div id="ep" style="display:none;margin-top:12px">
+<div class="warn"><strong>Not advised.</strong> Updating from branches other than main is experimental. Branch builds may be unstable or incomplete. Use at your own risk.</div>
+<label>Branch Name</label>
+<input type="text" id="ob" placeholder="e.g. dev" autocomplete="off">
+<button type="button" class="ebtn" onclick="doOTA(document.getElementById('ob').value)">Update from Branch</button>
+</div></div></div>
 <div class="foot">&copy; 2026 Parker Redding &amp; Clingman Ave Labs</div>
 <script>
 function sw(n){document.querySelectorAll('.tab').forEach(function(t,i){t.classList.toggle('active',i==n)});document.querySelectorAll('.pnl').forEach(function(p,i){p.classList.toggle('active',i==n)});}
@@ -738,6 +762,16 @@ if(df)df.addEventListener('submit',function(ev){
 function doR(){document.getElementById('rb').style.display='none';document.getElementById('rc').parentNode.style.display='none';document.getElementById('rm').style.display='block';fetch('/rst',{method:'POST'});}
 document.querySelectorAll('#tl input[name=tkr]').forEach(function(el){if(el.value.trim())vT(el);});
 initDrag();cA();
+function togExp(){var p=document.getElementById('ep'),a=document.getElementById('ea');if(p.style.display==='none'){p.style.display='block';a.style.transform='rotate(90deg)';}else{p.style.display='none';a.style.transform='';}}
+function doOTA(b){
+  var m=document.getElementById('om');m.style.display='block';m.style.color='#4a9eff';m.textContent='Starting update... do not power off.';
+  document.querySelectorAll('.ubtn,.ebtn').forEach(function(btn){btn.disabled=true;});
+  var fd=new FormData();if(b)fd.append('branch',b.trim());
+  fetch('/ota',{method:'POST',body:fd}).then(function(r){return r.json()}).then(function(d){
+    if(d.ok){m.style.color='#2ecc71';m.textContent='Update complete! Rebooting...';}
+    else{m.style.color='#e74c3c';m.textContent='Update failed: '+(d.err||'Unknown error');document.querySelectorAll('.ubtn,.ebtn').forEach(function(btn){btn.disabled=false;});}
+  })["catch"](function(){m.style.color='#f39c12';m.textContent='Connection lost \u2014 device may be rebooting with new firmware.';});
+}
 </script></body></html>)rawliteral";
   return h;
 }
@@ -837,6 +871,46 @@ void hReset() {
   gDone = true;
 }
 
+void hOTA() {
+  if(!gInet) {
+    srv.send(200, "application/json", "{\"ok\":false,\"err\":\"No internet connection\"}");
+    return;
+  }
+  String branch = srv.arg("branch"); branch.trim();
+  String url;
+  if(branch.length() == 0 || branch == "main") {
+    url = OTA_URL;
+  } else {
+    char buf[256];
+    snprintf(buf, sizeof(buf), OTA_BRANCH_FMT, branch.c_str());
+    url = String(buf);
+  }
+  Serial.println("[OTA] URL: " + url);
+
+  WiFiClientSecure cl;
+  cl.setInsecure();
+  httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+  t_httpUpdate_return ret = httpUpdate.update(cl, url);
+
+  switch(ret) {
+    case HTTP_UPDATE_OK:
+      srv.send(200, "application/json", "{\"ok\":true}");
+      delay(1000);
+      ESP.restart();
+      break;
+    case HTTP_UPDATE_FAILED:
+      {
+        String err = httpUpdate.getLastErrorString();
+        err.replace("\"", "'");
+        srv.send(200, "application/json", "{\"ok\":false,\"err\":\"" + err + "\"}");
+      }
+      break;
+    case HTTP_UPDATE_NO_UPDATES:
+      srv.send(200, "application/json", "{\"ok\":false,\"err\":\"No update available\"}");
+      break;
+  }
+}
+
 // ---------------------------------------------------------------
 // CAPTIVE PORTAL
 // ---------------------------------------------------------------
@@ -864,6 +938,7 @@ bool runPortal(bool first) {
   srv.on("/saveDash", HTTP_POST, hSaveD);
   srv.on("/val",      HTTP_GET,  hVal);
   srv.on("/rst",      HTTP_POST, hReset);
+  srv.on("/ota",      HTTP_POST, hOTA);
   // Captive portal hooks
   const char* hooks[] = {"/hotspot-detect.html","/generate_204","/gen_204",
     "/ncsi.txt","/connecttest.txt","/redirect","/success.txt",
